@@ -10,6 +10,6 @@ db = {
 def get_products_of_category(category):
     return db.get(category, [])
 
-elctorics = get_products_of_category('전자제품')
+electronics = get_products_of_category('전자제품')
 products = get_products_of_category('주방용품')
-print(elctorics, products)
+print(electronics, products)
