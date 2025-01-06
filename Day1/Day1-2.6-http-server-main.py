@@ -1,19 +1,51 @@
 from socket import *
 import json
 import re
+from enum import Enum
+from dataclasses import dataclass
 
-def parseRequest(requests: str) -> str | None:
+class HTTPMethod(Enum):
+    GET = 'GET'
+    POST = 'POST'
+
+class HTTPStatusCode(Enum):
+    OK = (200, 'OK')
+    NOT_FOUND = (404, 'Not Found')
+    SEE_OTHER = (303, 'See Other')
+    SERVER_ERROR = (500, 'Internal Server Error')
+
+class HttpContentType(Enum):
+    TEXT_HTML = 'text/html'
+    APPLICATION_JSON = 'application/json'
+    IMAGE_PNG = 'image/png'
+
+@dataclass
+class HTTPRequest:
+    method: HTTPMethod
+    url: str
+    
+def makeResponseHeader(status: HTTPStatusCode, contentType: HttpContentType, extra: dict|None = None) -> str:
+    strResp = f'HTTP/1.1 {status.value[0]} {status.value[1]}\n'
+    strResp += f'Content-Type: {contentType.value}\n'
+    if extra:
+        for key, value in extra.items():
+            strResp += f'{key}: {value}\n'
+    strResp += '\n'
+    return strResp
+
+def parseRequest(requests: str) -> HTTPRequest | None:
     if len(requests) < 1:
         return None
-    
     arRequests = requests.split('\n')
     for line in arRequests:
         match = re.search(r'\b(GET|POST|DELETE|PUT|PATCH)\b\s+(.*?)\s+HTTP/1.1', line)
         if match:
-            strMethod = match.group(1)
-            print(strMethod)
-            strPath = match.group(2)
-            return strPath
+            method = HTTPMethod(match.group(1))
+            url = match.group(2)
+            try:
+                return HTTPRequest(method, url)
+            except ValueError:
+                return None
     return None
 
 def getUserList():
@@ -35,49 +67,34 @@ def createServer():
             
             request = connectionSocket.recv(4096).decode('utf-8')
             print(request)
-            strPath = parseRequest(request)
-            print(f'Path: {strPath}')
-            if strPath is None:
+            req = parseRequest(request)
+            if req is None or req.url is None:
                 connectionSocket.shutdown(SHUT_WR)
                 continue
             
-            if strPath is None:
-                print(connectionSocket)
-                connectionSocket.shutdown(SHUT_WR)
-                print('socket will shutdown')
-                continue
-            
-            if strPath not in arPath:
+            if req.url not in arPath:
                 print('Resource not found')
-                response = 'HTTP/1.1 404 Not Found\n'
-                response += 'Content-Type: text/html\n'
-                response += '\n'
+                response = makeResponseHeader(HTTPStatusCode.NOT_FOUND, HttpContentType.TEXT_HTML)
                 response += '<html><body>404 Not Found</body></html>\n'
                 connectionSocket.sendall(response.encode('utf-8'))
                 connectionSocket.shutdown(SHUT_WR)
                 continue
             
-            if strPath == '/google':
-                response = 'HTTP/1.1 303 See Other\n'
-                response += 'Location: https://www.google.com\n'
-                response += 'Content-Type: text/html\n'
-                response += '\n'
+            if req.url == '/google':
+                response = makeResponseHeader(HTTPStatusCode.SEE_OTHER, HttpContentType.TEXT_HTML, {'Location': 'https://www.google.com'})
                 connectionSocket.sendall(response.encode('utf-8'))
                 connectionSocket.shutdown(SHUT_WR)
                 continue
             
-            response = 'HTTP/1.1 200 OK\n'
-            if strPath == '/user/list':
-                response += 'Content-Type: application/json\n'
-                response += '\n'
+            response = ''
+            if req.url == '/user/list':
+                response = makeResponseHeader(HTTPStatusCode.OK, HttpContentType.APPLICATION_JSON)
                 response += json.dumps(getUserList())
-            elif strPath == '/':
-                response += 'Content-Type: text/html\n'
-                response += '\n'
+            elif req.url == '/':
+                response = makeResponseHeader(HTTPStatusCode.OK, HttpContentType.TEXT_HTML)
                 response += '<html><body>Hello World<br /><img src="/google.png" /></body></html>\n'
-            elif strPath == '/google.png':
-                response += 'Content-Type: image/png\n'
-                response += '\n'
+            elif req.url == '/google.png':
+                response = makeResponseHeader(HTTPStatusCode.OK, HttpContentType.IMAGE_PNG)
                 connectionSocket.sendall(response.encode('utf-8'))
                 with open('google.png', 'rb') as f:
                     while chunk := f.read(1024):
