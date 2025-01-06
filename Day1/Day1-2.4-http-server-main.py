@@ -24,6 +24,7 @@ def getUserList():
     ]
 
 def createServer():
+    arPath = ['/', '/user/list']
     serverSocket = socket(AF_INET, SOCK_STREAM)
     try:
         serverSocket.bind(('localhost', 8080))
@@ -40,12 +41,21 @@ def createServer():
                 connectionSocket.shutdown(SHUT_WR)
                 continue
             
+            if strPath not in arPath:
+                response = 'HTTP/1.1 404 Not Found\n'
+                response += 'Content-Type: text/html\n'
+                response += '\n'
+                response += '<html><body>404 Not Found</body></html>\n'
+                connectionSocket.sendall(response.encode('utf-8'))
+                connectionSocket.shutdown(SHUT_WR)
+                continue
+            
             response = 'HTTP/1.1 200 OK\n'
             if strPath == '/user/list':
                 response += 'Content-Type: application/json\n'
                 response += '\n'
                 response += json.dumps(getUserList())
-            else:
+            elif strPath == '/':
                 response += 'Content-Type: text/html\n'
                 response += '\n'
                 response += '<html><body>Hello World</body></html>\n'
