@@ -118,7 +118,7 @@ def createServer():
                 arChunks = [resp[i:i+chunk_size] for i in range(0, len(resp), chunk_size)]
                 for chunk in arChunks:
                     connectionSocket.sendall(chunk)
-                connectionSocket.shutdown(SHUT_WR)
+            connectionSocket.shutdown(SHUT_WR)
             
     except KeyboardInterrupt:
         print('\nShutting down the server\n')
