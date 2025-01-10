@@ -4,6 +4,7 @@ import re
 from enum import Enum
 from dataclasses import dataclass
 import os
+import mimetypes
 
 class HTTPMethod(Enum):
     GET = 'GET'
@@ -80,9 +81,12 @@ def getUserList() -> None:
     ]
 
 # /
-def handler_home(request: HTTPRequest) -> bytes:
-    response = makeResponseHeader(HTTPStatusCode.OK, HttpContentType.TEXT_HTML).encode('utf-8')
-    response += read_file('index.html')
+def handler_home(request: HTTPRequest) -> bytes | None:
+    data, mimeType = read_file('index.html')
+    if data is None:
+        return None
+    response = makeResponseHeader(HTTPStatusCode.OK, mimeType).encode('utf-8')
+    response += data
     return response
 
 # /user/list
@@ -98,23 +102,55 @@ def handler_google(request: HTTPRequest) -> bytes:
 
 # /google.png
 def handler_google_png(request: HTTPRequest) -> bytes:
-    response = makeResponseHeader(HTTPStatusCode.OK, HttpContentType.IMAGE_PNG).encode('utf-8')
-    response += read_file('google.png')
+    data, mimeType = read_file('google.png')
+    if data is None:
+        return None
+    response = makeResponseHeader(HTTPStatusCode.OK, mimeType).encode('utf-8')
+    response += data
     return response
 
-def hander_404(request: HTTPRequest) -> bytes:
-    response = makeResponseHeader(HTTPStatusCode.NOT_FOUND, HttpContentType.TEXT_HTML)
-    response += '<html><body>404 Not Found</body></html>\n'
-    return response.encode('utf-8')
+def hander_404(request: HTTPRequest) -> bytes | None:
+    data, mimeType = read_file('404.html')
+    if data is None:
+        return None
+    response = makeResponseHeader(HTTPStatusCode.NOT_FOUND, mimeType).encode('utf-8')
+    response += data
+    return response
 
-def read_file(file_path: str) -> str:
+def hander_500(request: HTTPRequest) -> bytes:
+    data, mimeType = read_file('500.html')
+    if data is None:
+        mimeType = HttpContentType.TEXT_HTML
+        data = '<html><body>500 Internal Server Error</body></html>\n'.encode('utf-8')
+    response = makeResponseHeader(HTTPStatusCode.SERVER_ERROR, mimeType).encode('utf-8')
+    response += data
+    return response
+
+def handler_image(request: HTTPRequest) -> bytes:
+    data, mimeType = read_file(request.path)
+    if data is None:
+        return None
+    response = makeResponseHeader(HTTPStatusCode.OK, mimeType).encode('utf-8')
+    response += data
+    return response
+
+def read_file(file_path: str) -> tuple[str, HttpContentType]:
     pathToRead = os.path.join('html', file_path)
-    with open(pathToRead, 'rb') as f:
-        return f.read()
+    mime_type, _ = mimetypes.guess_type(pathToRead)
+    try:
+        with open(pathToRead, 'rb') as f:
+            return f.read(), HttpContentType(mime_type)
+    except FileNotFoundError:
+        pass
+    return None, None
 
 def handle_request(request: HTTPRequest) -> bytes:
     resp = None
     print(f'Handle request: {request.path}')
+    
+    if request.path.endswith('.png') or request.path.endswith('.jpg'):
+        return handler_image(request)
+    
     if request.path == '/google':
         resp = handler_google(request)
     elif request.path == '/user/list':
@@ -145,6 +181,8 @@ def createServer():
                 continue
             
             resp = handle_request(req)
+            if resp is None:
+                resp = hander_500(req)
             
             if resp is not None:
                 chunk_size = 1024
@@ -156,8 +194,8 @@ def createServer():
     except KeyboardInterrupt:
         print('\nShutting down the server\n')
         serverSocket.close()
-    except Exception as e:
-        print('Unexpected error:', e)
+    # except Exception as e:
+        # print('Unexpected error:', e)
         
 if __name__ == '__main__':
     createServer()
