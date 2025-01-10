@@ -35,11 +35,11 @@ def parseQuery(url: str) -> tuple[str, dict | None]:
     if match:
         print(len(match.groups()))
         path = match.group(1)
-        queryStr = match.group(4)
         if path[-1] == '/':
             path = path[:-1]
         if path == '':
             path = '/'
+        queryStr = match.group(4)
         for q in queryStr.split('&'):
             arQs = q.split('=')
             if len(arQs) == 2:
@@ -107,8 +107,23 @@ def hander_404(request: HTTPRequest) -> bytes:
     response += '<html><body>404 Not Found</body></html>\n'
     return response.encode('utf-8')
 
+def handle_request(request: HTTPRequest) -> bytes:
+    resp = None
+    print(f'Handle request: {request.path}')
+    if request.path == '/google':
+        resp = handler_google(request)
+    elif request.path == '/user/list':
+        resp = handler_user_list(request)
+    elif request.path == '/':
+        resp = handler_home(request)
+    elif request.path == '/google.png':
+        resp = handler_google_png(request)
+    else:
+        resp = hander_404(request)
+    return resp
+    
+
 def createServer():
-    arPath = ['/', '/user/list', '/google.png', '/google']
     serverSocket = socket(AF_INET, SOCK_STREAM)
     try:
         serverSocket.bind(('localhost', 8080))
@@ -118,24 +133,13 @@ def createServer():
             print('Connection received from ', addr)
             
             request = connectionSocket.recv(4096).decode('utf-8')
-            print(request)
+            # print(request)
             req = parseRequest(request)
             if req is None or req.url is None:
                 connectionSocket.shutdown(SHUT_WR)
                 continue
-            print(req)
-            resp = None
             
-            if not req.path.startswith(tuple(arPath)):
-                resp = hander_404(req)
-            elif req.path == '/google':
-                resp = handler_google(req)
-            elif req.path == '/user/list':
-                resp = handler_user_list(req)
-            elif req.path == '/':
-                resp = handler_home(req)
-            elif req.path == '/google.png':
-                resp = handler_google_png(req)
+            resp = handle_request(req)
             
             if resp is not None:
                 chunk_size = 1024
