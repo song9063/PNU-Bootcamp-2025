@@ -20,6 +20,8 @@ class HttpContentType(Enum):
     TEXT_HTML = 'text/html'
     APPLICATION_JSON = 'application/json'
     IMAGE_PNG = 'image/png'
+    IMAGE_JPEG = 'image/jpeg'
+    IMAGE_JPG = 'image/jpg'
 
 @dataclass
 class HTTPRequest:
@@ -135,6 +137,8 @@ def handler_image(request: HTTPRequest) -> bytes:
     return response
 
 def read_file(file_path: str) -> tuple[str, HttpContentType]:
+    if len(file_path) > 0 and file_path[0] == '/':
+        file_path = file_path[1:]
     pathToRead = os.path.join('html', file_path)
     mime_type, _ = mimetypes.guess_type(pathToRead)
     try:
